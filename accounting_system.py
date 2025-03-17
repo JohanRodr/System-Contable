@@ -1,7 +1,9 @@
 import sys
 import json
+import os
+import shutil
 from datetime import datetime
-from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QSpacerItem, QSizePolicy, QApplication, QPushButton, QLineEdit, QDateEdit, QComboBox, QMessageBox
+from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QSpacerItem, QSizePolicy, QApplication, QPushButton, QLineEdit, QDateEdit, QComboBox, QMessageBox, QFileDialog
 from PySide6.QtGui import QFont, QDoubleValidator
 from PySide6.QtCore import Qt, QDate
 from save_user import SaveUserWindow
@@ -137,12 +139,41 @@ class AccountingSystemWindow(QWidget):
         """)
         button_save.clicked.connect(self.save_data)
 
+        # Crear y colocar el nuevo botón "Subir Archivo"
+        self.button_upload = QPushButton("Subir Archivo")
+        self.button_upload.setFont(QFont("Helvetica", 12))
+        self.button_upload.setStyleSheet("""
+            QPushButton {
+                background-color: white;
+                color: purple;
+                border: 2px solid #555;
+                border-radius: 10px;
+                padding: 5px;
+                background: qradialgradient(cx: 0.5, cy: 0.5, radius: 0.5,
+                                            fx: 0.5, fy: 0.5,
+                                            stop: 0 #fff, stop: 1 #ddd);
+            }
+            QPushButton:hover {
+                background: qradialgradient(cx: 0.5, cy: 0.5, radius: 0.5,
+                                            fx: 0.5, fy: 0.5,
+                                            stop: 0 #fff, stop: 1 #bbb);
+            }
+            QPushButton:pressed {
+                background: qradialgradient(cx: 0.5, cy: 0.5, radius: 0.5,
+                                            fx: 0.5, fy: 0.5,
+                                            stop: 0 #ddd, stop: 1 #aaa);
+            }
+        """)
+        self.button_upload.clicked.connect(self.upload_file)
+        self.uploaded_file_path = ""
+
         # Crear el layout horizontal para los botones en la parte superior
         button_layout = QHBoxLayout()
         button_layout.addWidget(button_add)
         button_layout.addWidget(button_search)
         button_layout.addWidget(button_view_invoice)
         button_layout.addWidget(button_save)
+        button_layout.addWidget(self.button_upload)
 
         # Crear y colocar el nuevo label "Fecha" y el selector de fecha
         label_date = QLabel("Fecha")
@@ -348,7 +379,6 @@ class AccountingSystemWindow(QWidget):
         total_layout.addWidget(label_total)
         total_layout.addWidget(self.entry_total)
 
-        # Crear el layout principal
         self.layout = QVBoxLayout()
         self.layout.addLayout(button_layout)
         self.layout.addLayout(date_layout)
@@ -445,6 +475,7 @@ class AccountingSystemWindow(QWidget):
 
     def show_invoice_window(self):
         self.invoice_window = FacturaWindow()
+        self.invoice_window.window_closed.connect(self.load_users)  # Recargar usuarios cuando se cierre la ventana de facturas
         self.invoice_window.show()
 
     def save_data(self):
@@ -461,10 +492,22 @@ class AccountingSystemWindow(QWidget):
             "IVA 16%": self.entry_iva_16.text(),
             "Base imponible 8%": self.entry_base_8.text(),
             "IVA 8%": self.entry_iva_8.text(),
-            "Total": self.entry_total.text()
+            "Total": self.entry_total.text(),
+            "Archivo": self.uploaded_file_path
         }
 
         try:
+            # Crear la ruta de destino para el archivo
+            if self.uploaded_file_path:
+                fecha = self.date_edit.date().toString("yyyy-MM-dd")
+                year, month, _ = fecha.split('-')
+                tipo_transaccion = self.combo_transaction_type.currentText()
+                dest_dir = f'C:/Users/Dell/Desktop/System Contable/INFORMES CONTADORES/EMPRESAS/{data["Empresa"]}/FACTURAS/{tipo_transaccion}/{year}/{month}'
+                os.makedirs(dest_dir, exist_ok=True)
+                dest_path = os.path.join(dest_dir, os.path.basename(self.uploaded_file_path))
+                shutil.copy(self.uploaded_file_path, dest_path)
+                data["Archivo"] = dest_path
+
             with open("datos_guardados.json", "r+", encoding="utf-8") as file:
                 file_data = json.load(file)
                 file_data.append(data)
@@ -486,6 +529,10 @@ class AccountingSystemWindow(QWidget):
         self.entry_base_8.clear()
         self.entry_iva_8.clear()
         self.entry_total.clear()
+        self.uploaded_file_path = ""
+        self.button_upload.setText("Subir Archivo")
+        self.button_upload.clicked.disconnect()
+        self.button_upload.clicked.connect(self.upload_file)
 
     def delete_user(self, user_name):
         try:
@@ -497,6 +544,13 @@ class AccountingSystemWindow(QWidget):
             self.load_users()  # Actualizar la lista de usuarios después de eliminar uno
         except (FileNotFoundError, json.JSONDecodeError):
             pass
+
+    def upload_file(self):
+        file_dialog = QFileDialog()
+        file_path, _ = file_dialog.getOpenFileName(self, "Seleccionar archivo", "", "Images (*.png *.xpm *.jpg *.jpeg);;PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            self.uploaded_file_path = file_path
+            self.button_upload.setText(os.path.basename(file_path))
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
