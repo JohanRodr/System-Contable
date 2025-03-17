@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 import os
 import shutil
-
+## Fino
 class FacturaWindow(QWidget):
     def __init__(self):
         super().__init__()
