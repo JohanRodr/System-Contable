@@ -1,10 +1,11 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QApplication, QLabel, QPushButton, QAbstractItemView, QScrollArea, QAbstractScrollArea, QHBoxLayout, QLineEdit, QDateEdit, QMessageBox, QComboBox, QDialog, QDialogButtonBox
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QApplication, QLabel, QPushButton, QAbstractItemView, QScrollArea, QAbstractScrollArea, QHBoxLayout, QLineEdit, QDateEdit, QMessageBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt, QDate
 import json
 import sys
 from datetime import datetime
 import os
+import shutil
 
 class FacturaWindow(QWidget):
     def __init__(self):
@@ -41,6 +42,11 @@ class FacturaWindow(QWidget):
         view_books_button.setFont(QFont("Helvetica", 14))
         view_books_button.clicked.connect(self.view_books)
         button_layout.addWidget(view_books_button)
+
+        delete_company_button = QPushButton("Eliminar Empresa")
+        delete_company_button.setFont(QFont("Helvetica", 14))
+        delete_company_button.clicked.connect(self.delete_empresa)
+        button_layout.addWidget(delete_company_button)
 
         exit_button = QPushButton("Salir")
         exit_button.setFont(QFont("Helvetica", 14))
@@ -135,6 +141,29 @@ class FacturaWindow(QWidget):
             nombre_empresa = self.table_widget.item(selected_row, 0).text()
             self.view_books_dialog = ViewBooksDialog(nombre_empresa)
             self.view_books_dialog.exec()
+
+    def delete_empresa(self):
+        selected_row = self.table_widget.currentRow()
+        if selected_row >= 0:
+            nombre_empresa = self.table_widget.item(selected_row, 0).text()
+            reply = QMessageBox.question(self, 'Eliminar Empresa', f'¿Estás seguro de que deseas eliminar la empresa {nombre_empresa}?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                # Eliminar la carpeta de la empresa
+                empresa_dir = f'C:/Users/Dell/Desktop/System Contable/INFORMES CONTADORES/EMPRESAS/{nombre_empresa}'
+                if os.path.exists(empresa_dir):
+                    shutil.rmtree(empresa_dir)
+
+                # Eliminar la empresa del archivo JSON
+                try:
+                    with open("contribuyentes.json", "r", encoding="utf-8") as file:
+                        data = json.load(file)
+                    data = [empresa for empresa in data if empresa.get("Nombre:", "").upper() != nombre_empresa.upper()]
+                    with open("contribuyentes.json", "w", encoding="utf-8") as file:
+                        json.dump(data, file, ensure_ascii=False, indent=4)
+                except (FileNotFoundError, json.JSONDecodeError) as e:
+                    print(f"Error al eliminar la empresa: {e}")
+
+                self.load_empresas()  # Recargar la lista de empresas
 
 class ViewBooksDialog(QDialog):
     def __init__(self, nombre_empresa):
@@ -325,7 +354,7 @@ class ViewFacturaWindow(QWidget):
             self.table_widget.setItem(0, 0, QTableWidgetItem("No se encontraron datos de facturas."))
 
     def update_factura_table(self, facturas):
-        headers = ["Fecha", "Nombre del Cliente", "RIF", "Número de Control", "Número de Documento", "Base imponible 16%", "IVA 16%", "Base imponible 8%", "IVA 8%", "Total"]
+        headers = ["Anexar Adj", "Fecha", "Nombre del Cliente", "RIF", "Número de Control", "Número de Documento", "Base imponible 16%", "IVA 16%", "Base imponible 8%", "IVA 8%", "Total"]
         self.table_widget.setColumnCount(len(headers))
         self.table_widget.setHorizontalHeaderLabels(headers)
         self.table_widget.setRowCount(len(facturas))
@@ -338,12 +367,23 @@ class ViewFacturaWindow(QWidget):
         cell_font = QFont("Helvetica", 16)
         for row, factura in enumerate(facturas):
             for col, key in enumerate(headers):
-                value = factura.get(key, "")
-                if key in ["Base imponible 16%", "IVA 16%", "Base imponible 8%", "IVA 8%", "Total"]:
-                    value = float(value) if value else 0.0
-                if key == "Nombre del Cliente":
-                    value = value.upper()
-                self.add_table_item(row, col, str(value), cell_font)
+                if key == "Anexar Adj":
+                    file_path = factura.get("Anexar Adj", "")
+                    if file_path:
+                        button = QPushButton("Ver")
+                        button.clicked.connect(lambda _, p=file_path: self.open_file(p))
+                    else:
+                        button = QPushButton("Anexar Adj")
+                        button.clicked.connect(lambda _, r=row: self.attach_file(r))
+                    button.setFont(QFont("Helvetica", 12))
+                    self.table_widget.setCellWidget(row, col, button)
+                else:
+                    value = factura.get(key, "")
+                    if key in ["Base imponible 16%", "IVA 16%", "Base imponible 8%", "IVA 8%", "Total"]:
+                        value = float(value) if value else 0.0
+                    if key == "Nombre del Cliente":
+                        value = value.upper()
+                    self.add_table_item(row, col, str(value), cell_font)
 
     def add_table_item(self, row, column, text, font):
         item = QTableWidgetItem(text)
@@ -351,6 +391,43 @@ class ViewFacturaWindow(QWidget):
         if "IVA" in self.table_widget.horizontalHeaderItem(column).text() or "Total" in self.table_widget.horizontalHeaderItem(column).text():
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
         self.table_widget.setItem(row, column, item)
+
+    def attach_file(self, row):
+        file_dialog = QFileDialog()
+        file_path, _ = file_dialog.getOpenFileName(self, "Seleccionar archivo", "", "Images (*.png *.xpm *.jpg *.jpeg);;PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            # Obtener la fecha de la factura
+            fecha_item = self.table_widget.item(row, 1)
+            if fecha_item:
+                fecha = fecha_item.text()
+                year, month, _ = fecha.split('-')
+
+                # Determinar el tipo de transacción
+                tipo_transaccion = "Compras" if self.transaction_type == "Compras" else "Ventas"
+
+                # Crear la ruta de destino
+                dest_dir = f'C:/Users/Dell/Desktop/System Contable/INFORMES CONTADORES/EMPRESAS/{self.nombre_empresa}/FACTURAS/{tipo_transaccion}/{year}/{month}'
+                os.makedirs(dest_dir, exist_ok=True)
+
+                # Mover el archivo
+                dest_path = os.path.join(dest_dir, os.path.basename(file_path))
+                shutil.move(file_path, dest_path)
+
+                # Actualizar la tabla y guardar la ruta del archivo
+                self.table_widget.setItem(row, 0, QTableWidgetItem(dest_path))
+                self.save_facturas()
+
+                # Cambiar el texto del botón a "Ver"
+                button = self.table_widget.cellWidget(row, 0)
+                button.setText("Ver")
+                button.clicked.disconnect()
+                button.clicked.connect(lambda _, p=dest_path: self.open_file(p))
+
+    def open_file(self, file_path):
+        if os.path.exists(file_path):
+            os.startfile(file_path)
+        else:
+            QMessageBox.warning(self, "Error", f"No se encontró el archivo: {file_path}")
 
     def filter_by_date(self):
         selected_day = self.day_filter.currentText()
@@ -382,7 +459,8 @@ class ViewFacturaWindow(QWidget):
             factura_data = {}
             for col in range(self.table_widget.columnCount()):
                 key = self.table_widget.horizontalHeaderItem(col).text()
-                value = self.table_widget.item(selected_row, col).text()
+                item = self.table_widget.item(selected_row, col)
+                value = item.text() if item else ""
                 factura_data[key] = value
             self.edit_window = EditFacturaWindow(factura_data, self.save_edited_factura, selected_row)
             self.edit_window.show()
@@ -392,13 +470,23 @@ class ViewFacturaWindow(QWidget):
         if selected_row >= 0:
             reply = QMessageBox.question(self, 'Eliminar Factura', '¿Estás seguro de que deseas eliminar esta factura?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply == QMessageBox.Yes:
+                # Obtener la ruta del archivo adjunto
+                file_path_item = self.table_widget.item(selected_row, 0)
+                if file_path_item:
+                    file_path = file_path_item.text()
+                    if os.path.exists(file_path):
+                        os.remove(file_path)  # Eliminar el archivo adjunto
+
                 self.table_widget.removeRow(selected_row)
                 self.save_facturas()
 
     def save_edited_factura(self, factura_data, row):
         for col, key in enumerate(factura_data.keys()):
             item = self.table_widget.item(row, col)
-            item.setText(factura_data[key])
+            if item:
+                item.setText(factura_data[key])
+            else:
+                self.table_widget.setItem(row, col, QTableWidgetItem(factura_data[key]))
         self.save_facturas()
         self.load_facturas()  # Recargar las facturas después de guardar
 
@@ -415,7 +503,8 @@ class ViewFacturaWindow(QWidget):
             factura = {}
             for col in range(self.table_widget.columnCount()):
                 key = self.table_widget.horizontalHeaderItem(col).text()
-                value = self.table_widget.item(row, col).text()
+                item = self.table_widget.item(row, col)
+                value = item.text() if item else ""
                 factura[key] = value
             factura["Empresa"] = self.nombre_empresa  # Asegurarse de que el campo "Empresa" esté presente
             factura["Tipo de Transacción"] = self.transaction_type  # Asegurarse de que el campo "Tipo de Transacción" esté presente
@@ -541,7 +630,6 @@ class EditFacturaWindow(QWidget):
             base_16_value = float(self.inputs["Base imponible 16%"].text()) if self.inputs["Base imponible 16%"].text() else 0.0
             iva_16_value = base_16_value * 0.16
             self.inputs["IVA 16%"].setText(f"{iva_16_value:.2f}")
-
             base_8_value = float(self.inputs["Base imponible 8%"].text()) if self.inputs["Base imponible 8%"].text() else 0.0
             iva_8_value = base_8_value * 0.08
             self.inputs["IVA 8%"].setText(f"{iva_8_value:.2f}")
@@ -567,3 +655,4 @@ if __name__ == "__main__":
     window = FacturaWindow()
     window.show()
     sys.exit(app.exec())
+
