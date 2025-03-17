@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 import os
 import shutil
-## Fino
+
 class FacturaWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -411,7 +411,15 @@ class ViewFacturaWindow(QWidget):
 
                 # Mover el archivo
                 dest_path = os.path.join(dest_dir, os.path.basename(file_path))
-                shutil.move(file_path, dest_path)
+
+                # Eliminar el archivo anterior si existe
+                old_file_path_item = self.table_widget.item(row, 0)
+                if old_file_path_item:
+                    old_file_path = old_file_path_item.text()
+                    if os.path.exists(old_file_path):
+                        os.remove(old_file_path)
+
+                shutil.copy(file_path, dest_path)
 
                 # Actualizar la tabla y guardar la ruta del archivo
                 self.table_widget.setItem(row, 0, QTableWidgetItem(dest_path))
@@ -462,6 +470,7 @@ class ViewFacturaWindow(QWidget):
                 item = self.table_widget.item(selected_row, col)
                 value = item.text() if item else ""
                 factura_data[key] = value
+            factura_data["Empresa"] = self.nombre_empresa  # Asegurarse de que el campo "Empresa" esté presente
             self.edit_window = EditFacturaWindow(factura_data, self.save_edited_factura, selected_row)
             self.edit_window.show()
 
@@ -592,7 +601,7 @@ class EditFacturaWindow(QWidget):
 
     def init_ui(self):
         self.setWindowTitle("Editar Factura")
-        self.setFixedSize(400, 300)
+        self.setFixedSize(400, 400)
         self.setStyleSheet("background-color: white;")
 
         layout = QVBoxLayout()
@@ -609,6 +618,11 @@ class EditFacturaWindow(QWidget):
             elif "IVA" in key or "Total" in key:
                 input_field = QLineEdit(value)
                 input_field.setReadOnly(True)
+            elif key == "Anexar Adj":
+                input_field = QPushButton("Cambiar Archivo")
+                input_field.clicked.connect(self.change_file)
+                self.file_path_label = QLabel(value)
+                h_layout.addWidget(self.file_path_label)
             else:
                 input_field = QLineEdit(value)
                 if "Base imponible" in key:
@@ -641,10 +655,40 @@ class EditFacturaWindow(QWidget):
             self.inputs["IVA 8%"].setText("")
             self.inputs["Total"].setText("")
 
+    def change_file(self):
+        file_dialog = QFileDialog()
+        file_path, _ = file_dialog.getOpenFileName(self, "Seleccionar archivo", "", "Images (*.png *.xpm *.jpg *.jpeg);;PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            # Obtener la fecha de la factura
+            fecha = self.inputs["Fecha"].date().toString("yyyy-MM-dd")
+            year, month, _ = fecha.split('-')
+
+            # Determinar el tipo de transacción
+            tipo_transaccion = "Compras" if self.factura_data.get("Tipo de Transacción", "Compras") == "Compras" else "Ventas"
+
+            # Crear la ruta de destino
+            dest_dir = f'C:/Users/Dell/Desktop/System Contable/INFORMES CONTADORES/EMPRESAS/{self.factura_data["Empresa"]}/FACTURAS/{tipo_transaccion}/{year}/{month}'
+            os.makedirs(dest_dir, exist_ok=True)
+
+            # Mover el archivo
+            dest_path = os.path.join(dest_dir, os.path.basename(file_path))
+
+            # Eliminar el archivo anterior si existe
+            old_file_path = self.file_path_label.text()
+            if os.path.exists(old_file_path):
+                os.remove(old_file_path)
+
+            shutil.copy(file_path, dest_path)
+
+            # Actualizar la etiqueta de la ruta del archivo
+            self.file_path_label.setText(dest_path)
+
     def save_factura(self):
         for key, input_field in self.inputs.items():
             if key == "Fecha":
                 self.factura_data[key] = input_field.date().toString("yyyy-MM-dd")
+            elif key == "Anexar Adj":
+                self.factura_data[key] = self.file_path_label.text()
             else:
                 self.factura_data[key] = input_field.text()
         self.save_callback(self.factura_data, self.row)
@@ -655,4 +699,3 @@ if __name__ == "__main__":
     window = FacturaWindow()
     window.show()
     sys.exit(app.exec())
-
