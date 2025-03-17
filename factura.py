@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt, QDate
 import json
 import sys
 from datetime import datetime
+import os
 
 class FacturaWindow(QWidget):
     def __init__(self):
@@ -31,10 +32,15 @@ class FacturaWindow(QWidget):
         # Crear y colocar los botones
         button_layout = QHBoxLayout()
 
-        view_button = QPushButton("Ver")
+        view_button = QPushButton("Ver Facturas")
         view_button.setFont(QFont("Helvetica", 14))
         view_button.clicked.connect(self.view_factura)
         button_layout.addWidget(view_button)
+
+        view_books_button = QPushButton("Ver Libros")
+        view_books_button.setFont(QFont("Helvetica", 14))
+        view_books_button.clicked.connect(self.view_books)
+        button_layout.addWidget(view_books_button)
 
         exit_button = QPushButton("Salir")
         exit_button.setFont(QFont("Helvetica", 14))
@@ -122,6 +128,74 @@ class FacturaWindow(QWidget):
         cell_font = QFont("Helvetica", 16)
         for row, empresa in enumerate(empresas):
             self.add_table_item(row, 0, empresa.get("Nombre:", "").upper(), cell_font)
+
+    def view_books(self):
+        selected_row = self.table_widget.currentRow()
+        if selected_row >= 0:
+            nombre_empresa = self.table_widget.item(selected_row, 0).text()
+            self.view_books_dialog = ViewBooksDialog(nombre_empresa)
+            self.view_books_dialog.exec()
+
+class ViewBooksDialog(QDialog):
+    def __init__(self, nombre_empresa):
+        super().__init__()
+        self.nombre_empresa = nombre_empresa
+        self.init_ui()
+
+    def init_ui(self):
+        self.setWindowTitle("Seleccione el mes y el año")
+        self.setFixedSize(400, 200)  # Ajustar el tamaño del cuadro de diálogo
+
+        layout = QVBoxLayout(self)
+
+        self.month_edit = QComboBox()
+        self.month_edit.setFont(QFont("Helvetica", 12))
+        self.month_edit.addItems([f"{month:02d}" for month in range(1, 13)])
+        self.month_edit.setCurrentText(f"{QDate.currentDate().month():02d}")
+        layout.addWidget(QLabel("Mes:"))
+        layout.addWidget(self.month_edit)
+
+        self.year_edit = QComboBox()
+        self.year_edit.setFont(QFont("Helvetica", 12))
+        self.year_edit.addItems([str(year) for year in range(2000, QDate.currentDate().year() + 1)])
+        self.year_edit.setCurrentText(str(QDate.currentDate().year()))
+        layout.addWidget(QLabel("Año:"))
+        layout.addWidget(self.year_edit)
+
+        self.tipo_libro_edit = QComboBox()
+        self.tipo_libro_edit.setFont(QFont("Helvetica", 12))
+        self.tipo_libro_edit.addItems(["LIBRO DE VENTAS", "LIBRO DE COMPRAS", "AMBOS"])
+        layout.addWidget(QLabel("Tipo de Libro:"))
+        layout.addWidget(self.tipo_libro_edit)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.open_books)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def open_books(self):
+        month = int(self.month_edit.currentText())
+        year = int(self.year_edit.currentText())
+        tipo_libro = self.tipo_libro_edit.currentText()
+
+        base_path = f'INFORMES CONTADORES/EMPRESAS/{self.nombre_empresa.upper()}/LIBROS DE COMPRAS Y VENTAS/{year}/{month:02d}'
+        month_name = datetime(year, month, 1).strftime('%B').upper()
+
+        if tipo_libro in ["LIBRO DE COMPRAS", "AMBOS"]:
+            compras_path = os.path.join(base_path, f'LIBRO DE COMPRAS {month_name} {year} - {self.nombre_empresa.upper()}.xlsx')
+            if os.path.exists(compras_path):
+                os.startfile(compras_path)
+            else:
+                QMessageBox.warning(self, "Error", f"No se encontró el archivo: {compras_path}")
+
+        if tipo_libro in ["LIBRO DE VENTAS", "AMBOS"]:
+            ventas_path = os.path.join(base_path, f'LIBRO DE VENTAS {month_name} {year} - {self.nombre_empresa.upper()}.xlsx')
+            if os.path.exists(ventas_path):
+                os.startfile(ventas_path)
+            else:
+                QMessageBox.warning(self, "Error", f"No se encontró el archivo: {ventas_path}")
+
+        self.accept()
 
 class ViewFacturaWindow(QWidget):
     def __init__(self, nombre_empresa):
@@ -493,4 +567,3 @@ if __name__ == "__main__":
     window = FacturaWindow()
     window.show()
     sys.exit(app.exec())
-
