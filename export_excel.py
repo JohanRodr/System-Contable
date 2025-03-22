@@ -152,9 +152,9 @@ def export_compras(template_path, usuario, rif_usuario, year, month, facturas, b
         for row in range(10, last_row + 1):
             ws[f'A{row}'].number_format = 'General'
 
-        # Aplicar bordes superiores a las celdas desde la fila 11, columna O hasta la columna AA
+        # Aplicar bordes superiores a las celdas desde la fila 11, columna R hasta la columna AF
         thin_border = Border(top=Side(style='thin'))
-        for col in range(15, 28):  # Columnas O (15) a AA (27)
+        for col in range(18, 33):  # Columnas R (18) a AF (33)
             cell = ws.cell(row=last_row + 1, column=col)
             cell.border = thin_border
 
@@ -272,116 +272,9 @@ def export_ventas(template_path, usuario, rif_usuario, year, month, facturas, ba
         for row in range(10, last_row + 1):
             ws[f'A{row}'].number_format = 'General'
 
-        # Aplicar bordes superiores a las celdas desde la fila 11, columna O hasta la columna AA
+        # Aplicar bordes superiores a las celdas desde la fila 11, columna R hasta la columna AF
         thin_border = Border(top=Side(style='thin'))
-        for col in range(15, 28):  # Columnas O (15) a AA (27)
-            cell = ws.cell(row=last_row + 1, column=col)
-            cell.border = thin_border
-
-        # Guardar el archivo Excel con los datos agregados
-        month_name = datetime(year, month, 1).strftime('%B').upper()
-        excel_path = os.path.join(base_path, f'LIBRO DE VENTAS {month_name} {year} - {usuario.upper()}.xlsx')
-        wb.save(excel_path)
-
-        print(f"Datos exportados exitosamente a {excel_path}")
-        return True
-
-    except Exception as e:
-        print(f"Error al exportar datos de ventas: {str(e)}")
-        return False
-    try:
-        if not facturas:
-            print("No hay facturas de ventas para exportar.")
-            return False
-
-        # Cargar el archivo Excel existente
-        wb = load_workbook(template_path)
-        ws = wb.active
-
-        # Modificar la casilla D-1 con el nombre del usuario en mayúsculas
-        ws['D1'] = usuario.upper()
-
-        # Modificar la casilla D-2 con el RIF del usuario
-        ws['D2'] = rif_usuario
-
-        # Modificar la casilla D-4 con el rango de fechas correspondiente
-        first_day = f"01/{month:02d}/{year}"
-        last_day = f"{calendar.monthrange(year, month)[1]}/{month:02d}/{year}"
-        ws['D4'] = f"{first_day} al {last_day}"
-
-        # Preparar los datos para el Excel
-        for i, factura in enumerate(facturas, start=10):  # Comenzar desde la fila 10
-            row_index = i  # Ajustar el índice de fila para la nueva fila
-
-            # Insertar una nueva fila para cada factura
-            ws.insert_rows(row_index)
-
-            # Insertar los datos de la factura
-            ws[f'A{row_index}'] = row_index - 9  # Columna A, comenzando desde 1
-            ws[f'B{row_index}'] = datetime.strptime(factura['Fecha'], '%Y-%m-%d').strftime('%d/%m/%Y')
-            ws[f'C{row_index}'] = factura['RIF']
-            ws[f'D{row_index}'] = factura['Nombre del Cliente'].upper()
-            ws[f'F{row_index}'] = factura['Número de Documento']
-            ws[f'H{row_index}'] = factura['Número de Control']
-            ws[f'K{row_index}'] = "01 Registro"  # Colocar "01 Registro" en la columna K
-            ws[f'R{row_index}'] = float(factura['Base imponible 16%']) if factura['Base imponible 16%'] else 0.0
-            ws[f'S{row_index}'] = 16  # Colocar el valor 16 en la columna S de cada fila
-            ws[f'T{row_index}'] = f"=R{row_index}*16%"  # Colocar la fórmula en la columna T de la fila actual
-
-        # Calcular la fila de la última factura
-        last_row = len(facturas) + 9
-
-        # Eliminar la fila adicional si existe
-        if ws.cell(row=last_row + 1, column=1).value is None:
-            ws.delete_rows(last_row + 1)
-
-        # Colocar el valor 16 en la columna S de la última fila
-        ws[f'S{last_row}'] = 16
-
-        # Actualizar las fórmulas de suma en las columnas de O a R, T a W, y Y a AA
-        for col in list(range(15, 19)) + list(range(20, 24)) + list(range(25, 28)):  # Columnas O (15) a R (18), T (20) a W (23), y Y (25) a AA (27)
-            col_letter = get_column_letter(col)
-            sum_formula = f"=SUM({col_letter}10:{col_letter}{last_row})"
-            ws.cell(row=last_row + 1, column=col, value=sum_formula)
-
-        # Colocar las fórmulas en la columna O
-        for i in range(10, last_row + 1):
-            ws[f'O{i}'] = f"=+R{i}+T{i}"
-
-        # Colocar la fórmula de suma en la última fila de la columna O
-        ws[f'O{last_row + 1}'] = f"=SUM(O10:O{last_row})"
-
-        # Colocar las fórmulas en las columnas E y F según el número de facturas, sumando una fila más
-        if len(facturas) == 1:
-            ws[f'E18'] = f"=+W11+R11"
-            ws[f'F18'] = f"=+Y11+T11"
-        elif len(facturas) == 2:
-            ws[f'E19'] = f"=+W12+R12"
-            ws[f'F19'] = f"=+Y12+T12"
-        elif len(facturas) >= 3:
-            ws[f'E20'] = f"=+W13+R13"
-            ws[f'F20'] = f"=+Y13+T13"
-
-        # Aplicar formato de número con separador de miles y decimales y establecer el tamaño de la fuente
-        number_format = '#,##0.00'
-        font_size_8 = Font(size=8)
-        alignment_center = Alignment(horizontal='center', vertical='center')
-        for row in range(10, last_row + 1):
-            for col in range(1, 28):  # Columnas A (1) a AA (27)
-                cell = ws.cell(row=row, column=col)
-                if col != 4:  # Excluir la columna D (4) que contiene texto
-                    cell.number_format = number_format
-                cell.font = font_size_8
-                if col in [6, 8]:  # Centrar solo las columnas F (6) y H (8)
-                    cell.alignment = alignment_center
-
-        # Asegurar que la columna A tenga el formato general
-        for row in range(10, last_row + 1):
-            ws[f'A{row}'].number_format = 'General'
-
-        # Aplicar bordes superiores a las celdas desde la fila 11, columna O hasta la columna AA
-        thin_border = Border(top=Side(style='thin'))
-        for col in range(15, 28):  # Columnas O (15) a AA (27)
+        for col in range(18, 33):  # Columnas R (18) a AF (33)
             cell = ws.cell(row=last_row + 1, column=col)
             cell.border = thin_border
 
@@ -403,8 +296,8 @@ def some_other_function():
     year = 2025
     month = 1
     tipo_libro = "AMBOS"
-    template_path_compras = 'C:/Users/Dell/Desktop/SC/LIBRO DE COMPRAS ENERO 2025 - INVERSIONES JEPA ELECTRIC, C.A.xlsx'
-    template_path_ventas = 'C:/Users/Dell/Desktop/SC/LIBRO DE VENTAS FEBRERO 2025 - INVERSIONES JEPA ELECTRIC, C.A.xlsx'
+    template_path_compras = 'C:/Users/Dell/Desktop/SC/LIBRO DE COMPRAS.xlsx'
+    template_path_ventas = 'C:/Users/Dell/Desktop/SC/LIBRO DE VENTAS.xlsx'
     export_to_excel(template_path_compras, template_path_ventas, usuario=usuario, year=year, month=month, tipo_libro=tipo_libro)
 
 if __name__ == "__main__":
@@ -412,6 +305,6 @@ if __name__ == "__main__":
     year = int(input("Ingrese el año: "))
     month = int(input("Ingrese el mes: "))
     tipo_libro = input("Seleccione el tipo de libro (LIBRO DE VENTAS, LIBRO DE COMPRAS, AMBOS): ")
-    template_path_compras = 'C:/Users/Dell/Desktop/SC/LIBRO DE COMPRAS ENERO 2025 - INVERSIONES JEPA ELECTRIC, C.A.xlsx'
-    template_path_ventas = 'C:/Users/Dell/Desktop/SC/LIBRO DE VENTAS FEBRERO 2025 - INVERSIONES JEPA ELECTRIC, C.A.xlsx'
+    template_path_compras = 'C:/Users/Dell/Desktop/SC/LIBRO DE COMPRAS.xlsx'
+    template_path_ventas = 'C:/Users/Dell/Desktop/SC/LIBRO DE VENTAS.xlsx'
     export_to_excel(template_path_compras, template_path_ventas, usuario=usuario, year=year, month=month, tipo_libro=tipo_libro)
