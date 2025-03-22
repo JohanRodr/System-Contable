@@ -6,6 +6,7 @@ import sys
 from datetime import datetime
 import os
 import shutil
+from export_excel import export_to_excel
 
 class FacturaWindow(QWidget):
     window_closed = Signal()  # Señal personalizada para indicar que la ventana se ha cerrado
@@ -345,10 +346,10 @@ class ViewFacturaWindow(QWidget):
                     data = [data]
 
                 # Filtrar las facturas de la empresa seleccionada
-                self.empresa_facturas = [factura for factura in data if factura.get("Empresa", "").upper() == self.nombre_empresa.upper()]
+                self.all_facturas = [factura for factura in data if factura.get("Empresa", "").upper() == self.nombre_empresa.upper()]
 
                 # Filtrar por tipo de transacción
-                self.empresa_facturas = [factura for factura in self.empresa_facturas if factura.get("Tipo de Transacción", "Compras") == self.transaction_type]
+                self.empresa_facturas = [factura for factura in self.all_facturas if factura.get("Tipo de Transacción", "Compras") == self.transaction_type]
 
                 # Ordenar las facturas por fecha
                 self.empresa_facturas.sort(key=lambda x: datetime.strptime(x['Fecha'], '%Y-%m-%d'))
@@ -390,12 +391,14 @@ class ViewFacturaWindow(QWidget):
                     if key == "Nombre del Cliente":
                         value = value.upper()
                     self.add_table_item(row, col, str(value), cell_font)
+
     def add_table_item(self, row, column, text, font):
         item = QTableWidgetItem(text)
         item.setFont(font)
         if "IVA" in self.table_widget.horizontalHeaderItem(column).text() or "Total" in self.table_widget.horizontalHeaderItem(column).text():
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
         self.table_widget.setItem(row, column, item)
+
     def open_file(self, file_path):
         if os.path.exists(file_path):
             os.startfile(file_path)
@@ -406,8 +409,19 @@ class ViewFacturaWindow(QWidget):
         file_dialog = QFileDialog()
         file_path, _ = file_dialog.getOpenFileName(self, "Seleccionar archivo", "", "Images (*.png *.xpm *.jpg *.jpeg);;PDF Files (*.pdf);;All Files (*)")
         if file_path:
-            self.empresa_facturas[row]["Archivo"] = file_path
+            factura = self.empresa_facturas[row]
+            tipo_transaccion = factura.get("Tipo de Transacción", "Compras")
+            fecha = datetime.strptime(factura["Fecha"], '%Y-%m-%d')
+            year = fecha.year
+            month = f"{fecha.month:02d}"
+            empresa_dir = f'C:/Users/Dell/Desktop/System Contable/INFORMES CONTADORES/EMPRESAS/{self.nombre_empresa}/FACTURAS/{tipo_transaccion}/{year}/{month}'
+            if not os.path.exists(empresa_dir):
+                os.makedirs(empresa_dir)
+            new_file_path = os.path.join(empresa_dir, os.path.basename(file_path))
+            shutil.copy(file_path, new_file_path)
+            self.empresa_facturas[row]["Archivo"] = new_file_path
             self.update_factura_table(self.empresa_facturas)
+            self.save_facturas()
 
     def search_facturas(self):
         search_text = self.search_input.text().strip().lower()
@@ -443,8 +457,12 @@ class ViewFacturaWindow(QWidget):
         if selected_row >= 0:
             factura = self.empresa_facturas[selected_row]
             self.edit_window = EditFacturaWindow(factura)
-            self.edit_window.factura_updated.connect(self.load_facturas)
+            self.edit_window.factura_updated.connect(self.on_factura_updated)
             self.edit_window.show()
+
+    def on_factura_updated(self):
+        self.save_facturas()
+        self.load_facturas()
 
     def delete_factura(self):
         selected_row = self.table_widget.currentRow()
@@ -458,19 +476,40 @@ class ViewFacturaWindow(QWidget):
                     os.remove(file_path)
 
                 self.empresa_facturas.pop(selected_row)
+                self.all_facturas.remove(factura)  # Asegurarse de eliminar la factura de la lista completa
                 self.update_factura_table(self.empresa_facturas)
                 self.save_facturas()
 
     def save_facturas(self):
         try:
-            with open("datos_guardados.json", "w", encoding="utf-8") as file:
-                json.dump(self.empresa_facturas, file, indent=4, ensure_ascii=False)
+            with open("datos_guardados.json", "r", encoding="utf-8") as file:
+                data = json.load(file)
+                if not isinstance(data, list):
+                    data = [data]
+
+                # Actualizar las facturas de la empresa seleccionada
+                all_facturas = [factura for factura in data if factura.get("Empresa", "").upper() != self.nombre_empresa.upper()]
+                all_facturas.extend(self.all_facturas)  # Guardar todas las facturas, no solo las del tipo actual
+
+                with open("datos_guardados.json", "w", encoding="utf-8") as file:
+                    json.dump(all_facturas, file, indent=4, ensure_ascii=False)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron guardar las facturas: {e}")
 
     def export_to_excel(self):
-        # Implementar la lógica para exportar a Excel
-        pass
+        dialog = ExportDialog(self.nombre_empresa)
+        if dialog.exec() == QDialog.Accepted:
+            month = dialog.month_edit.currentText()
+            year = dialog.year_edit.currentText()
+            tipo_libro = dialog.tipo_libro_edit.currentText()
+            template_path_compras = self.template_path_compras
+            template_path_ventas = self.template_path_ventas
+
+            success = export_to_excel(template_path_compras, template_path_ventas, usuario=self.nombre_empresa, year=int(year), month=int(month), tipo_libro=tipo_libro)
+            if success:
+                QMessageBox.information(self, "Éxito", "Datos exportados exitosamente a Excel.")
+            else:
+                QMessageBox.critical(self, "Error", "Hubo un error al exportar los datos a Excel.")
 
 class EditFacturaWindow(QWidget):
     factura_updated = Signal()
@@ -482,62 +521,87 @@ class EditFacturaWindow(QWidget):
 
     def init_ui(self):
         self.setWindowTitle("Editar Factura")
-        self.setFixedSize(400, 300)
+        self.setFixedSize(800, 800)  # Ajustar el tamaño de la ventana
         self.setStyleSheet("background-color: white;")
 
         layout = QVBoxLayout()
 
+        label_font = QFont("Helvetica", 16)  # Aumentar el tamaño de la fuente para los labels
+
         self.entry_nombre_cliente = QLineEdit(self.factura.get("Nombre del Cliente", ""))
-        self.entry_nombre_cliente.setFont(QFont("Helvetica", 12))
-        layout.addWidget(QLabel("Nombre del Cliente:"))
+        self.entry_nombre_cliente.setFont(QFont("Helvetica", 16))  # Aumentar el tamaño de la fuente
+        nombre_cliente_label = QLabel("Nombre del Cliente:")
+        nombre_cliente_label.setFont(label_font)
+        layout.addWidget(nombre_cliente_label)
         layout.addWidget(self.entry_nombre_cliente)
 
         self.entry_rif = QLineEdit(self.factura.get("RIF", ""))
-        self.entry_rif.setFont(QFont("Helvetica", 12))
-        layout.addWidget(QLabel("RIF:"))
+        self.entry_rif.setFont(QFont("Helvetica", 16))  # Aumentar el tamaño de la fuente
+        rif_label = QLabel("RIF:")
+        rif_label.setFont(label_font)
+        layout.addWidget(rif_label)
         layout.addWidget(self.entry_rif)
 
         self.entry_numero_control = QLineEdit(self.factura.get("Número de Control", ""))
-        self.entry_numero_control.setFont(QFont("Helvetica", 12))
-        layout.addWidget(QLabel("Número de Control:"))
+        self.entry_numero_control.setFont(QFont("Helvetica", 16))  # Aumentar el tamaño de la fuente
+        numero_control_label = QLabel("Número de Control:")
+        numero_control_label.setFont(label_font)
+        layout.addWidget(numero_control_label)
         layout.addWidget(self.entry_numero_control)
 
         self.entry_numero_documento = QLineEdit(self.factura.get("Número de Documento", ""))
-        self.entry_numero_documento.setFont(QFont("Helvetica", 12))
-        layout.addWidget(QLabel("Número de Documento:"))
+        self.entry_numero_documento.setFont(QFont("Helvetica", 16))  # Aumentar el tamaño de la fuente
+        numero_documento_label = QLabel("Número de Documento:")
+        numero_documento_label.setFont(label_font)
+        layout.addWidget(numero_documento_label)
         layout.addWidget(self.entry_numero_documento)
 
         self.entry_base_16 = QLineEdit(self.factura.get("Base imponible 16%", ""))
-        self.entry_base_16.setFont(QFont("Helvetica", 12))
+        self.entry_base_16.setFont(QFont("Helvetica", 16))  # Aumentar el tamaño de la fuente
         self.entry_base_16.setValidator(QDoubleValidator(0, 1000000, 2))
-        layout.addWidget(QLabel("Base imponible 16%:"))
+        self.entry_base_16.textChanged.connect(self.update_totals)
+        base_16_label = QLabel("Base imponible 16%:")
+        base_16_label.setFont(label_font)
+        layout.addWidget(base_16_label)
         layout.addWidget(self.entry_base_16)
 
         self.entry_iva_16 = QLineEdit(self.factura.get("IVA 16%", ""))
-        self.entry_iva_16.setFont(QFont("Helvetica", 12))
+        self.entry_iva_16.setFont(QFont("Helvetica", 16))  # Aumentar el tamaño de la fuente
         self.entry_iva_16.setReadOnly(True)
-        layout.addWidget(QLabel("IVA 16%:"))
+        iva_16_label = QLabel("IVA 16%:")
+        iva_16_label.setFont(label_font)
+        layout.addWidget(iva_16_label)
         layout.addWidget(self.entry_iva_16)
 
         self.entry_base_8 = QLineEdit(self.factura.get("Base imponible 8%", ""))
-        self.entry_base_8.setFont(QFont("Helvetica", 12))
+        self.entry_base_8.setFont(QFont("Helvetica", 16))  # Aumentar el tamaño de la fuente
         self.entry_base_8.setValidator(QDoubleValidator(0, 1000000, 2))
-        layout.addWidget(QLabel("Base imponible 8%:"))
+        self.entry_base_8.textChanged.connect(self.update_totals)
+        base_8_label = QLabel("Base imponible 8%:")
+        base_8_label.setFont(label_font)
+        layout.addWidget(base_8_label)
         layout.addWidget(self.entry_base_8)
 
         self.entry_iva_8 = QLineEdit(self.factura.get("IVA 8%", ""))
-
-
-        self.entry_iva_8.setFont(QFont("Helvetica", 12))
+        self.entry_iva_8.setFont(QFont("Helvetica", 16))  # Aumentar el tamaño de la fuente
         self.entry_iva_8.setReadOnly(True)
-        layout.addWidget(QLabel("IVA 8%:"))
+        iva_8_label = QLabel("IVA 8%:")
+        iva_8_label.setFont(label_font)
+        layout.addWidget(iva_8_label)
         layout.addWidget(self.entry_iva_8)
 
         self.entry_total = QLineEdit(self.factura.get("Total", ""))
-        self.entry_total.setFont(QFont("Helvetica", 12))
+        self.entry_total.setFont(QFont("Helvetica", 16))  # Aumentar el tamaño de la fuente
         self.entry_total.setReadOnly(True)
-        layout.addWidget(QLabel("Total:"))
+        total_label = QLabel("Total:")
+        total_label.setFont(label_font)
+        layout.addWidget(total_label)
         layout.addWidget(self.entry_total)
+
+        self.button_attach_file = QPushButton("Cambiar Archivo Adjunto")
+        self.button_attach_file.setFont(QFont("Helvetica", 16))  # Aumentar el tamaño de la fuente
+        self.button_attach_file.clicked.connect(self.change_attached_file)
+        layout.addWidget(self.button_attach_file)
 
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         button_box.accepted.connect(self.save_changes)
@@ -545,6 +609,37 @@ class EditFacturaWindow(QWidget):
         layout.addWidget(button_box)
 
         self.setLayout(layout)
+
+    def update_totals(self):
+        base_16 = float(self.entry_base_16.text()) if self.entry_base_16.text() else 0.0
+        base_8 = float(self.entry_base_8.text()) if self.entry_base_8.text() else 0.0
+        iva_16 = base_16 * 0.16
+        iva_8 = base_8 * 0.08
+        total = base_16 + iva_16 + base_8 + iva_8
+
+        self.entry_iva_16.setText(f"{iva_16:.2f}")
+        self.entry_iva_8.setText(f"{iva_8:.2f}")
+        self.entry_total.setText(f"{total:.2f}")
+
+    def change_attached_file(self):
+        file_dialog = QFileDialog()
+        file_path, _ = file_dialog.getOpenFileName(self, "Seleccionar archivo", "", "Images (*.png *.xpm *.jpg *.jpeg);;PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            # Eliminar el archivo anterior si existe
+            old_file_path = self.factura.get("Archivo", "")
+            if old_file_path and os.path.exists(old_file_path):
+                os.remove(old_file_path)
+            # Copiar el nuevo archivo a la ubicación deseada
+            tipo_transaccion = self.factura.get("Tipo de Transacción", "Compras")
+            fecha = datetime.strptime(self.factura["Fecha"], '%Y-%m-%d')
+            year = fecha.year
+            month = f"{fecha.month:02d}"
+            empresa_dir = f'C:/Users/Dell/Desktop/System Contable/INFORMES CONTADORES/EMPRESAS/{self.factura["Empresa"]}/FACTURAS/{tipo_transaccion}/{year}/{month}'
+            if not os.path.exists(empresa_dir):
+                os.makedirs(empresa_dir)
+            new_file_path = os.path.join(empresa_dir, os.path.basename(file_path))
+            shutil.copy(file_path, new_file_path)
+            self.factura["Archivo"] = new_file_path
 
     def save_changes(self):
         self.factura["Nombre del Cliente"] = self.entry_nombre_cliente.text()
@@ -559,6 +654,45 @@ class EditFacturaWindow(QWidget):
 
         self.factura_updated.emit()
         self.close()
+
+class ExportDialog(QDialog):
+    def __init__(self, nombre_empresa):
+        super().__init__()
+        self.nombre_empresa = nombre_empresa
+        self.init_ui()
+
+    def init_ui(self):
+        self.setWindowTitle("Exportar a Excel")
+        self.setFixedSize(400, 200)
+
+        layout = QVBoxLayout(self)
+
+        self.month_edit = QComboBox()
+        self.month_edit.setFont(QFont("Helvetica", 12))
+        self.month_edit.addItems([f"{month:02d}" for month in range(1, 13)])
+        self.month_edit.setCurrentText(f"{QDate.currentDate().month():02d}")
+        layout.addWidget(QLabel("Mes:"))
+        layout.addWidget(self.month_edit)
+
+        self.year_edit = QComboBox()
+        self.year_edit.setFont(QFont("Helvetica", 12))
+        self.year_edit.addItems([str(year) for year in range(2000, QDate.currentDate().year() + 1)])
+        self.year_edit.setCurrentText(str(QDate.currentDate().year()))
+        layout.addWidget(QLabel("Año:"))
+        layout.addWidget(self.year_edit)
+
+        self.tipo_libro_edit = QComboBox()
+        self.tipo_libro_edit.setFont(QFont("Helvetica", 12))
+        self.tipo_libro_edit.addItems(["LIBRO DE VENTAS", "LIBRO DE COMPRAS", "AMBOS"])
+        layout.addWidget(QLabel("Tipo de Libro:"))
+        layout.addWidget(self.tipo_libro_edit)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        self.setLayout(layout)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

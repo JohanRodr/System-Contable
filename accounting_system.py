@@ -3,7 +3,7 @@ import json
 import os
 import shutil
 from datetime import datetime
-from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QSpacerItem, QSizePolicy, QApplication, QPushButton, QLineEdit, QDateEdit, QComboBox, QMessageBox, QFileDialog
+from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QSpacerItem, QSizePolicy, QApplication, QPushButton, QLineEdit, QDateEdit, QComboBox, QMessageBox, QFileDialog, QCompleter
 from PySide6.QtGui import QFont, QDoubleValidator
 from PySide6.QtCore import Qt, QDate
 from save_user import SaveUserWindow
@@ -203,6 +203,7 @@ class AccountingSystemWindow(QWidget):
         self.combo_empresa = QComboBox()
         self.combo_empresa.setFont(QFont("Helvetica", 12))
         self.combo_empresa.setStyleSheet("background-color: white; color: black;")
+        self.combo_empresa.setEditable(True)  # Hacer el combo box editable para permitir la búsqueda
         self.combo_empresa.currentIndexChanged.connect(self.update_clients)
 
         empresa_layout = QHBoxLayout()
@@ -234,6 +235,7 @@ class AccountingSystemWindow(QWidget):
         self.combo_client = QComboBox()
         self.combo_client.setFont(QFont("Helvetica", 12))
         self.combo_client.setStyleSheet("background-color: white; color: black;")
+        self.combo_client.setEditable(True)  # Hacer el combo box editable para permitir la búsqueda
         self.combo_client.currentIndexChanged.connect(self.update_client_info)
 
         client_layout = QHBoxLayout()
@@ -363,6 +365,24 @@ class AccountingSystemWindow(QWidget):
         iva_8_layout.addWidget(label_iva_8)
         iva_8_layout.addWidget(self.entry_iva_8)
 
+        # Crear y colocar el nuevo label "Compras Exentas" y el cuadro de texto
+        self.label_compras_exentas = QLabel("Compras Exentas")
+        self.label_compras_exentas.setFont(font)
+        self.label_compras_exentas.setStyleSheet("color: black;")
+        self.label_compras_exentas.setAlignment(Qt.AlignLeft)
+        self.label_compras_exentas.hide()  # Ocultar inicialmente
+
+        self.entry_compras_exentas = QLineEdit()
+        self.entry_compras_exentas.setObjectName("entry_compras_exentas")  # Asignar nombre al QLineEdit
+        self.entry_compras_exentas.setFont(QFont("Helvetica", 12))
+        self.entry_compras_exentas.setStyleSheet("background-color: white; color: black;")
+        self.entry_compras_exentas.setValidator(QDoubleValidator(0, 1000000, 2))  # Aceptar solo números decimales
+        self.entry_compras_exentas.hide()  # Ocultar inicialmente
+
+        compras_exentas_layout = QHBoxLayout()
+        compras_exentas_layout.addWidget(self.label_compras_exentas)
+        compras_exentas_layout.addWidget(self.entry_compras_exentas)
+
         # Crear y colocar el nuevo label "Total" y el cuadro de texto
         label_total = QLabel("Total")
         label_total.setFont(font)
@@ -393,9 +413,11 @@ class AccountingSystemWindow(QWidget):
         self.layout.addLayout(iva_16_layout)
         self.layout.addLayout(base_8_layout)
         self.layout.addLayout(iva_8_layout)
+        self.layout.addLayout(compras_exentas_layout)
         self.layout.addLayout(total_layout)
-        self.layout.addItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
         self.setLayout(self.layout)
+
         self.load_users()
 
     def load_users(self):
@@ -405,6 +427,10 @@ class AccountingSystemWindow(QWidget):
                 self.users = [client for client in data if client.get("Tipo de Empresa:") == "Empresa"]
                 self.combo_empresa.clear()
                 self.combo_empresa.addItems([user.get("Nombre:", "").upper() for user in self.users])
+                completer = QCompleter([user.get("Nombre:", "").upper() for user in self.users])
+                completer.setCaseSensitivity(Qt.CaseInsensitive)
+                completer.setFilterMode(Qt.MatchContains)
+                self.combo_empresa.setCompleter(completer)
         except (FileNotFoundError, json.JSONDecodeError):
             self.combo_empresa.clear()
 
@@ -413,9 +439,13 @@ class AccountingSystemWindow(QWidget):
         try:
             with open("contribuyentes.json", "r", encoding="utf-8") as file:
                 data = json.load(file)
-                clients = [client for client in data if client.get("Empresa Asociada:") == selected_user]
+                clients = [client for client in data if client.get("Empresa Asociada:", "").upper() == selected_user]
                 self.combo_client.clear()
                 self.combo_client.addItems([client.get("Nombre:", "").upper() for client in clients])
+                completer = QCompleter([client.get("Nombre:", "").upper() for client in clients])
+                completer.setCaseSensitivity(Qt.CaseInsensitive)
+                completer.setFilterMode(Qt.MatchContains)
+                self.combo_client.setCompleter(completer)
         except (FileNotFoundError, json.JSONDecodeError):
             self.combo_client.clear()
 
@@ -425,43 +455,13 @@ class AccountingSystemWindow(QWidget):
             with open("contribuyentes.json", "r", encoding="utf-8") as file:
                 data = json.load(file)
                 for client in data:
-                    if client.get("Nombre:").upper() == selected_client:
+                    if client.get("Nombre:", "").upper() == selected_client:
                         self.entry_client_name.setText(client.get("Nombre:", "").upper())
                         self.entry_rif.setText(client.get("Número R.I.F.:", ""))
                         break
         except (FileNotFoundError, json.JSONDecodeError):
             self.entry_client_name.clear()
             self.entry_rif.clear()
-
-    def update_transaction_type(self):
-        transaction_type = self.combo_transaction_type.currentText()
-        if transaction_type == "Compras":
-            self.label_client.setText("Proveedor")
-            self.label_client.show()
-            self.combo_client.show()
-            self.update_clients()  # Actualizar la lista de clientes/proveedores
-        else:
-            self.label_client.hide()
-            self.combo_client.hide()
-            self.entry_client_name.clear()
-            self.entry_rif.clear()
-            self.combo_client.clear()  # Limpiar la lista de clientes
-
-    def update_totals(self):
-        try:
-            base_16 = float(self.entry_base_16.text()) if self.entry_base_16.text() else 0
-            base_8 = float(self.entry_base_8.text()) if self.entry_base_8.text() else 0
-            iva_16 = base_16 * 0.16
-            iva_8 = base_8 * 0.08
-            total = base_16 + iva_16 + base_8 + iva_8
-
-            self.entry_iva_16.setText(f"{iva_16:.2f}")
-            self.entry_iva_8.setText(f"{iva_8:.2f}")
-            self.entry_total.setText(f"{total:.2f}")
-        except ValueError:
-            self.entry_iva_16.clear()
-            self.entry_iva_8.clear()
-            self.entry_total.clear()
 
     def show_add_window(self):
         self.add_window = SaveUserWindow()
@@ -492,6 +492,7 @@ class AccountingSystemWindow(QWidget):
             "IVA 16%": self.entry_iva_16.text(),
             "Base imponible 8%": self.entry_base_8.text(),
             "IVA 8%": self.entry_iva_8.text(),
+            "Compras Exentas": self.entry_compras_exentas.text(),
             "Total": self.entry_total.text(),
             "Archivo": self.uploaded_file_path
         }
@@ -528,22 +529,13 @@ class AccountingSystemWindow(QWidget):
         self.entry_iva_16.clear()
         self.entry_base_8.clear()
         self.entry_iva_8.clear()
+        self.entry_compras_exentas.clear()
         self.entry_total.clear()
         self.uploaded_file_path = ""
+
         self.button_upload.setText("Subir Archivo")
         self.button_upload.clicked.disconnect()
         self.button_upload.clicked.connect(self.upload_file)
-
-    def delete_user(self, user_name):
-        try:
-            with open("contribuyentes.json", "r", encoding="utf-8") as file:
-                data = json.load(file)
-            data = [user for user in data if user.get("Nombre:", "").upper() != user_name.upper()]
-            with open("contribuyentes.json", "w", encoding="utf-8") as file:
-                json.dump(data, file, ensure_ascii=False, indent=4)
-            self.load_users()  # Actualizar la lista de usuarios después de eliminar uno
-        except (FileNotFoundError, json.JSONDecodeError):
-            pass
 
     def upload_file(self):
         file_dialog = QFileDialog()
@@ -551,6 +543,42 @@ class AccountingSystemWindow(QWidget):
         if file_path:
             self.uploaded_file_path = file_path
             self.button_upload.setText(os.path.basename(file_path))
+
+    def update_totals(self):
+        try:
+            base_16 = float(self.entry_base_16.text()) if self.entry_base_16.text() else 0
+            base_8 = float(self.entry_base_8.text()) if self.entry_base_8.text() else 0
+            compras_exentas = float(self.entry_compras_exentas.text()) if self.entry_compras_exentas.text() else 0
+            iva_16 = base_16 * 0.16
+            iva_8 = base_8 * 0.08
+            total = base_16 + iva_16 + base_8 + iva_8 + compras_exentas
+
+            self.entry_iva_16.setText(f"{iva_16:.2f}")
+            self.entry_iva_8.setText(f"{iva_8:.2f}")
+            self.entry_total.setText(f"{total:.2f}")
+        except ValueError:
+            self.entry_iva_16.clear()
+            self.entry_iva_8.clear()
+            self.entry_total.clear()
+
+    def update_transaction_type(self):
+        transaction_type = self.combo_transaction_type.currentText()
+        if transaction_type == "Compras":
+            self.label_client.setText("Proveedor")
+            self.label_client.show()
+            self.combo_client.show()
+            self.label_compras_exentas.setText("Compras Exentas")
+            self.label_compras_exentas.show()
+            self.entry_compras_exentas.show()
+            self.update_clients()  # Actualizar la lista de clientes/proveedores
+        else:
+            self.label_client.setText("Cliente")
+            self.label_client.show()
+            self.combo_client.show()
+            self.label_compras_exentas.setText("Ventas Exentas")
+            self.label_compras_exentas.show()
+            self.entry_compras_exentas.show()
+            self.update_clients()  # Actualizar la lista de clientes/proveedores
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
