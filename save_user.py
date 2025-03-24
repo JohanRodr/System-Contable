@@ -147,7 +147,9 @@ class SaveUserWindow(QWidget):
 
     def load_empresas(self):
         try:
-            with open("contribuyentes.json", "r", encoding="utf-8") as file:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            contribuyentes_path = os.path.join(script_dir, "contribuyentes.json")
+            with open(contribuyentes_path, "r", encoding="utf-8") as file:
                 data = json.load(file)
                 empresas = [client["Nombre:"] for client in data if client.get("Tipo de Empresa:") == "Empresa"]
                 self.combo_empresa.clear()
@@ -182,7 +184,9 @@ class SaveUserWindow(QWidget):
             self.save_callback(data, self.row)
         else:
             try:
-                with open("contribuyentes.json", "r") as file:
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                contribuyentes_path = os.path.join(script_dir, "contribuyentes.json")
+                with open(contribuyentes_path, "r", encoding="utf-8") as file:
                     existing_data = json.load(file)
                     if not isinstance(existing_data, list):
                         existing_data = []
@@ -191,7 +195,7 @@ class SaveUserWindow(QWidget):
 
             existing_data.append(data)
 
-            with open("contribuyentes.json", "w") as file:
+            with open(contribuyentes_path, "w", encoding="utf-8") as file:
                 json.dump(existing_data, file, indent=4)
 
             if data["Tipo de Empresa:"] == "Empresa":
@@ -203,7 +207,8 @@ class SaveUserWindow(QWidget):
         self.row = None
 
     def create_empresa_folders(self, empresa_name):
-        base_path = f'INFORMES CONTADORES/EMPRESAS/{empresa_name.upper()}'
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        base_path = os.path.join(script_dir, 'INFORMES CONTADORES/EMPRESAS', empresa_name.upper())
         os.makedirs(base_path, exist_ok=True)
 
     def clear_fields(self):

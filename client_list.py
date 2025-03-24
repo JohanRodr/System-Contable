@@ -70,7 +70,9 @@ class ClientListWindow(QWidget):
 
     def load_clients(self):
         try:
-            with open("contribuyentes.json", "r", encoding="utf-8") as file:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            contribuyentes_path = os.path.join(script_dir, "contribuyentes.json")
+            with open(contribuyentes_path, "r", encoding="utf-8") as file:
                 data = json.load(file)
                 if not isinstance(data, list):
                     data = []
@@ -147,7 +149,8 @@ class ClientListWindow(QWidget):
                                 self.filtered_clients.pop(index.row())
                                 print(f"Empresa {selected_entity_name} eliminada de la lista filtered_clients.")
                                 # Eliminar la carpeta de la empresa
-                                empresa_folder = os.path.join("C:\\Users\\Dell\\Desktop\\System Contable\\INFORMES CONTADORES\\EMPRESAS", selected_entity_name)
+                                script_dir = os.path.dirname(os.path.abspath(__file__))
+                                empresa_folder = os.path.join(script_dir, 'INFORMES CONTADORES/EMPRESAS', selected_entity_name)
                                 if os.path.exists(empresa_folder):
                                     shutil.rmtree(empresa_folder)
                                     print(f"Carpeta de la empresa {selected_entity_name} eliminada.")
@@ -220,11 +223,18 @@ class ClientListWindow(QWidget):
                 break
 
         self.save_clients()
-        self.load_clients()
+        # Actualizar la tabla actual sin recargar toda la lista
+        if self.selected_empresa:
+            self.filtered_clients = [client for client in self.all_clients if client.get("Empresa Asociada:") == self.selected_empresa]
+        else:
+            self.filtered_clients = [client for client in self.all_clients if client.get("Tipo de Empresa:") == "Empresa"]
+        self.update_table(self.filtered_clients)
 
     def save_clients(self):
         try:
-            with open("contribuyentes.json", "w", encoding="utf-8") as file:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            contribuyentes_path = os.path.join(script_dir, "contribuyentes.json")
+            with open(contribuyentes_path, "w", encoding="utf-8") as file:
                 json.dump(self.all_clients, file, ensure_ascii=False, indent=4)
             print("Datos guardados en contribuyentes.json.")
         except Exception as e:
