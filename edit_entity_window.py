@@ -5,7 +5,7 @@ from PySide6.QtCore import Qt, Signal
 class ComboBoxDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.font = QFont("Helvetica", 20)
+        self.font = QFont("Helvetica", 16)
 
     def paint(self, painter, option, index):
         painter.save()
@@ -19,7 +19,7 @@ class EditEntityWindow(QWidget):
     def __init__(self, entity, all_entities):
         super().__init__()
         self.setWindowTitle("Editar Entidad")
-        self.setFixedSize(600, 600)
+        self.setFixedSize(800, 600)
         self.setStyleSheet("background-color: white;")
 
         self.entity = entity
@@ -31,14 +31,14 @@ class EditEntityWindow(QWidget):
         for key, value in entity.items():
             h_layout = QHBoxLayout()
             label = QLabel(key)
-            label.setFont(QFont("Helvetica", 16))
+            label.setFont(QFont("Helvetica", 14))
             label.setStyleSheet("color: black;")
             label.setAlignment(Qt.AlignLeft)
             h_layout.addWidget(label)
 
             if key == "Empresa Asociada:":
                 self.combo_empresa = QComboBox()
-                self.combo_empresa.setFont(QFont("Helvetica", 16))
+                self.combo_empresa.setFont(QFont("Helvetica", 14))
                 self.combo_empresa.setStyleSheet("""
                     QComboBox {
                         font-size: 16px;
@@ -47,7 +47,7 @@ class EditEntityWindow(QWidget):
                     }
                 """)
                 self.combo_empresa.setEditable(True)
-                self.combo_empresa.setFixedSize(400, 40)
+                self.combo_empresa.setFixedSize(400, 30)
                 self.combo_empresa.addItems([e.get("Nombre:", "") for e in self.all_entities if e.get("Tipo de Empresa:") == "Empresa"])
                 completer = QCompleter([e.get("Nombre:", "") for e in self.all_entities if e.get("Tipo de Empresa:") == "Empresa"])
                 completer.setCaseSensitivity(Qt.CaseInsensitive)
@@ -64,7 +64,7 @@ class EditEntityWindow(QWidget):
                 line_edit = self.combo_empresa.lineEdit()
                 if line_edit:
                     line_edit.setFont(QFont("Helvetica", 16))
-                    line_edit.setStyleSheet("font-size: 20px;")
+                    line_edit.setStyleSheet("font-size: 16px;")
                     line_edit.setFixedHeight(40)
                     line_edit.setMinimumWidth(300)
 

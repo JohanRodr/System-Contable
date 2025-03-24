@@ -8,8 +8,20 @@ import calendar
 
 def export_to_excel(template_path_compras, template_path_ventas, usuario=None, year=None, month=None, tipo_libro=None):
     try:
+        # Verificar si los archivos de plantilla existen según el tipo de libro
+        if tipo_libro in ["LIBRO DE COMPRAS", "AMBOS"]:
+            print(f"Verificando la existencia del archivo de plantilla de compras: {template_path_compras}")
+            if not os.path.exists(template_path_compras):
+                print(f"El archivo de plantilla de compras no existe: {template_path_compras}")
+                return False
+        if tipo_libro in ["LIBRO DE VENTAS", "AMBOS"]:
+            print(f"Verificando la existencia del archivo de plantilla de ventas: {template_path_ventas}")
+            if not os.path.exists(template_path_ventas):
+                print(f"El archivo de plantilla de ventas no existe: {template_path_ventas}")
+                return False
+
         # Cargar datos de los contribuyentes para obtener el RIF del usuario
-        with open("contribuyentes.json", "r", encoding="utf-8") as file:
+        with open(os.path.join(os.path.dirname(__file__), "contribuyentes.json"), "r", encoding="utf-8") as file:
             contribuyentes = json.load(file)
             usuario_data = next((user for user in contribuyentes if user.get("Nombre:").upper() == usuario.upper() and user.get("Tipo de Empresa:") == "Empresa"), None)
             if not usuario_data:
@@ -18,7 +30,7 @@ def export_to_excel(template_path_compras, template_path_ventas, usuario=None, y
             rif_usuario = usuario_data.get("Número R.I.F.:", "")
 
         # Cargar datos de las facturas
-        with open("datos_guardados.json", "r", encoding="utf-8") as file:
+        with open(os.path.join(os.path.dirname(__file__), "datos_guardados.json"), "r", encoding="utf-8") as file:
             facturas = json.load(file)
 
         # Filtrar las facturas por usuario si se proporciona
@@ -36,8 +48,9 @@ def export_to_excel(template_path_compras, template_path_ventas, usuario=None, y
         facturas_compras = [factura for factura in facturas if factura.get("Tipo de Transacción") == "Compras"]
         facturas_ventas = [factura for factura in facturas if factura.get("Tipo de Transacción") == "Ventas"]
 
-        # Crear la estructura de carpetas
-        base_path = f'INFORMES CONTADORES/EMPRESAS/{usuario.upper()}/LIBROS DE COMPRAS Y VENTAS/{year}/{month:02d}'
+        # Crear la estructura de carpetas relativa a la ubicación del script
+        script_dir = os.path.dirname(__file__)
+        base_path = os.path.join(script_dir, "INFORMES CONTADORES", "EMPRESAS", usuario.upper(), "LIBROS DE COMPRAS Y VENTAS", str(year), f"{month:02d}")
         os.makedirs(base_path, exist_ok=True)
 
         if tipo_libro in ["LIBRO DE COMPRAS", "AMBOS"]:
@@ -296,15 +309,9 @@ def some_other_function():
     year = 2025
     month = 1
     tipo_libro = "AMBOS"
-    template_path_compras = 'C:/Users/Dell/Desktop/SC/LIBRO DE COMPRAS.xlsx'
-    template_path_ventas = 'C:/Users/Dell/Desktop/SC/LIBRO DE VENTAS.xlsx'
+    template_path_compras = os.path.join(os.path.dirname(__file__), "LIBRO DE COMPRAS.xlsx")
+    template_path_ventas = os.path.join(os.path.dirname(__file__), "LIBRO DE VENTAS.xlsx")
     export_to_excel(template_path_compras, template_path_ventas, usuario=usuario, year=year, month=month, tipo_libro=tipo_libro)
 
 if __name__ == "__main__":
-    usuario = input("Ingrese el nombre del usuario para exportar las facturas: ")
-    year = int(input("Ingrese el año: "))
-    month = int(input("Ingrese el mes: "))
-    tipo_libro = input("Seleccione el tipo de libro (LIBRO DE VENTAS, LIBRO DE COMPRAS, AMBOS): ")
-    template_path_compras = 'C:/Users/Dell/Desktop/SC/LIBRO DE COMPRAS.xlsx'
-    template_path_ventas = 'C:/Users/Dell/Desktop/SC/LIBRO DE VENTAS.xlsx'
-    export_to_excel(template_path_compras, template_path_ventas, usuario=usuario, year=year, month=month, tipo_libro=tipo_libro)
+    some_other_function()

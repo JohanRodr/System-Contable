@@ -201,9 +201,16 @@ class AccountingSystemWindow(QWidget):
         label_empresa.setAlignment(Qt.AlignLeft)
 
         self.combo_empresa = QComboBox()
-        self.combo_empresa.setFont(QFont("Helvetica", 12))
-        self.combo_empresa.setStyleSheet("background-color: white; color: black;")
+        self.combo_empresa.setFont(QFont("Helvetica", 14))
+        self.combo_empresa.setStyleSheet("""
+            QComboBox {
+                font-size: 16px;
+                background-color: white;
+                color: black;
+            }
+        """)
         self.combo_empresa.setEditable(True)  # Hacer el combo box editable para permitir la búsqueda
+        self.combo_empresa.setFixedSize(400, 30)
         self.combo_empresa.currentIndexChanged.connect(self.update_clients)
 
         empresa_layout = QHBoxLayout()
@@ -233,9 +240,16 @@ class AccountingSystemWindow(QWidget):
         self.label_client.setAlignment(Qt.AlignLeft)
 
         self.combo_client = QComboBox()
-        self.combo_client.setFont(QFont("Helvetica", 12))
-        self.combo_client.setStyleSheet("background-color: white; color: black;")
+        self.combo_client.setFont(QFont("Helvetica", 14))
+        self.combo_client.setStyleSheet("""
+            QComboBox {
+                font-size: 16px;
+                background-color: white;
+                color: black;
+            }
+        """)
         self.combo_client.setEditable(True)  # Hacer el combo box editable para permitir la búsqueda
+        self.combo_client.setFixedSize(400, 30)
         self.combo_client.currentIndexChanged.connect(self.update_client_info)
 
         client_layout = QHBoxLayout()
@@ -358,7 +372,6 @@ class AccountingSystemWindow(QWidget):
         self.entry_iva_8 = QLineEdit()
         self.entry_iva_8.setObjectName("entry_iva_8")  # Asignar nombre al QLineEdit
         self.entry_iva_8.setFont(QFont("Helvetica", 12))
-        self.entry_iva_8.setStyleSheet("background-color: white; color: black;")
         self.entry_iva_8.setReadOnly(True)  # Campo de solo lectura
 
         iva_8_layout = QHBoxLayout()
@@ -370,14 +383,12 @@ class AccountingSystemWindow(QWidget):
         self.label_compras_exentas.setFont(font)
         self.label_compras_exentas.setStyleSheet("color: black;")
         self.label_compras_exentas.setAlignment(Qt.AlignLeft)
-        self.label_compras_exentas.hide()  # Ocultar inicialmente
-
         self.entry_compras_exentas = QLineEdit()
+       
         self.entry_compras_exentas.setObjectName("entry_compras_exentas")  # Asignar nombre al QLineEdit
         self.entry_compras_exentas.setFont(QFont("Helvetica", 12))
         self.entry_compras_exentas.setStyleSheet("background-color: white; color: black;")
         self.entry_compras_exentas.setValidator(QDoubleValidator(0, 1000000, 2))  # Aceptar solo números decimales
-        self.entry_compras_exentas.hide()  # Ocultar inicialmente
 
         compras_exentas_layout = QHBoxLayout()
         compras_exentas_layout.addWidget(self.label_compras_exentas)
@@ -419,10 +430,13 @@ class AccountingSystemWindow(QWidget):
         self.setLayout(self.layout)
 
         self.load_users()
+        self.update_transaction_type()  # Asegurarse de que el tipo de transacción se actualice al iniciar
 
     def load_users(self):
         try:
-            with open("contribuyentes.json", "r", encoding="utf-8") as file:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            contribuyentes_path = os.path.join(script_dir, "contribuyentes.json")
+            with open(contribuyentes_path, "r", encoding="utf-8") as file:
                 data = json.load(file)
                 self.users = [client for client in data if client.get("Tipo de Empresa:") == "Empresa"]
                 self.combo_empresa.clear()
@@ -437,7 +451,9 @@ class AccountingSystemWindow(QWidget):
     def update_clients(self):
         selected_user = self.combo_empresa.currentText()
         try:
-            with open("contribuyentes.json", "r", encoding="utf-8") as file:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            contribuyentes_path = os.path.join(script_dir, "contribuyentes.json")
+            with open(contribuyentes_path, "r", encoding="utf-8") as file:
                 data = json.load(file)
                 clients = [client for client in data if client.get("Empresa Asociada:", "").upper() == selected_user]
                 self.combo_client.clear()
@@ -451,15 +467,21 @@ class AccountingSystemWindow(QWidget):
 
     def update_client_info(self):
         selected_client = self.combo_client.currentText()
-        try:
-            with open("contribuyentes.json", "r", encoding="utf-8") as file:
-                data = json.load(file)
-                for client in data:
-                    if client.get("Nombre:", "").upper() == selected_client:
-                        self.entry_client_name.setText(client.get("Nombre:", "").upper())
-                        self.entry_rif.setText(client.get("Número R.I.F.:", ""))
-                        break
-        except (FileNotFoundError, json.JSONDecodeError):
+        if self.combo_transaction_type.currentText() == "Compras":
+            try:
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                contribuyentes_path = os.path.join(script_dir, "contribuyentes.json")
+                with open(contribuyentes_path, "r", encoding="utf-8") as file:
+                    data = json.load(file)
+                    for client in data:
+                        if client.get("Nombre:", "").upper() == selected_client:
+                            self.entry_client_name.setText(client.get("Nombre:", "").upper())
+                            self.entry_rif.setText(client.get("Número R.I.F.:", ""))
+                            break
+            except (FileNotFoundError, json.JSONDecodeError):
+                self.entry_client_name.clear()
+                self.entry_rif.clear()
+        else:
             self.entry_client_name.clear()
             self.entry_rif.clear()
 
@@ -503,20 +525,25 @@ class AccountingSystemWindow(QWidget):
                 fecha = self.date_edit.date().toString("yyyy-MM-dd")
                 year, month, _ = fecha.split('-')
                 tipo_transaccion = self.combo_transaction_type.currentText()
-                dest_dir = f'C:/Users/Dell/Desktop/System Contable/INFORMES CONTADORES/EMPRESAS/{data["Empresa"]}/FACTURAS/{tipo_transaccion}/{year}/{month}'
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                dest_dir = os.path.join(script_dir, 'INFORMES CONTADORES/EMPRESAS', data["Empresa"], 'FACTURAS', tipo_transaccion, year, month)
                 os.makedirs(dest_dir, exist_ok=True)
+                base_name = f"{data['Empresa']}-{tipo_transaccion}-{data['Número de Documento']}"
                 dest_path = os.path.join(dest_dir, os.path.basename(self.uploaded_file_path))
+                dest_path = self.get_unique_file_path(dest_path, base_name, dest_dir)
                 shutil.copy(self.uploaded_file_path, dest_path)
                 data["Archivo"] = dest_path
 
-            with open("datos_guardados.json", "r+", encoding="utf-8") as file:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            datos_guardados_path = os.path.join(script_dir, "datos_guardados.json")
+            with open(datos_guardados_path, "r+", encoding="utf-8") as file:
                 file_data = json.load(file)
                 file_data.append(data)
                 file.seek(0)
                 json.dump(file_data, file, indent=4, ensure_ascii=False)
             QMessageBox.information(self, "Éxito", "Datos guardados correctamente.")
         except (FileNotFoundError, json.JSONDecodeError):
-            with open("datos_guardados.json", "w", encoding="utf-8") as file:
+            with open(datos_guardados_path, "w", encoding="utf-8") as file:
                 json.dump([data], file, indent=4, ensure_ascii=False)
             QMessageBox.information(self, "Éxito", "Datos guardados correctamente.")
         except Exception as e:
@@ -543,6 +570,15 @@ class AccountingSystemWindow(QWidget):
         if file_path:
             self.uploaded_file_path = file_path
             self.button_upload.setText(os.path.basename(file_path))
+
+    def get_unique_file_path(self, file_path, base_name, directory):
+        extension = os.path.splitext(file_path)[1]
+        new_file_path = os.path.join(directory, f"{base_name}{extension}")
+        counter = 1
+        while os.path.exists(new_file_path):
+            new_file_path = os.path.join(directory, f"{base_name}_{counter}{extension}")
+            counter += 1
+        return new_file_path
 
     def update_totals(self):
         try:
@@ -572,9 +608,18 @@ class AccountingSystemWindow(QWidget):
             self.entry_compras_exentas.show()
             self.update_clients()  # Actualizar la lista de clientes/proveedores
         else:
-            self.label_client.setText("Cliente")
-            self.label_client.show()
-            self.combo_client.show()
+            self.label_client.hide()
+            self.combo_client.hide()
+            self.entry_client_name.clear()
+            self.entry_rif.clear()
+            self.entry_doc_num.clear()
+            self.entry_control_num.clear()
+            self.entry_base_16.clear()
+            self.entry_iva_16.clear()
+            self.entry_base_8.clear()
+            self.entry_iva_8.clear()
+            self.entry_compras_exentas.clear()
+            self.entry_total.clear()
             self.label_compras_exentas.setText("Ventas Exentas")
             self.label_compras_exentas.show()
             self.entry_compras_exentas.show()

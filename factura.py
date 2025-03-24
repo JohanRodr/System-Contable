@@ -71,7 +71,9 @@ class FacturaWindow(QWidget):
 
     def load_empresas(self):
         try:
-            with open("contribuyentes.json", "r", encoding="utf-8") as file:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            contribuyentes_path = os.path.join(script_dir, "contribuyentes.json")
+            with open(contribuyentes_path, "r", encoding="utf-8") as file:
                 data = json.load(file)
                 empresas = [client for client in data if client.get("Tipo de Empresa:") == "Empresa"]
 
@@ -111,7 +113,9 @@ class FacturaWindow(QWidget):
         search_text = self.search_input.text().strip().lower()
         if search_text:
             try:
-                with open("contribuyentes.json", "r", encoding="utf-8") as file:
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                contribuyentes_path = os.path.join(script_dir, "contribuyentes.json")
+                with open(contribuyentes_path, "r", encoding="utf-8") as file:
                     data = json.load(file)
                     filtered_empresas = [empresa for empresa in data if empresa.get("Tipo de Empresa:") == "Empresa" and search_text in empresa.get("Nombre:", "").lower()]
 
@@ -152,19 +156,32 @@ class FacturaWindow(QWidget):
             reply = QMessageBox.question(self, 'Eliminar Empresa', f'¿Estás seguro de que deseas eliminar la empresa {nombre_empresa}?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if reply == QMessageBox.Yes:
                 # Eliminar la carpeta de la empresa
-                empresa_dir = f'C:/Users/Dell/Desktop/System Contable/INFORMES CONTADORES/EMPRESAS/{nombre_empresa}'
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                empresa_dir = os.path.join(script_dir, 'INFORMES CONTADORES/EMPRESAS', nombre_empresa)
                 if os.path.exists(empresa_dir):
                     shutil.rmtree(empresa_dir)
 
-                # Eliminar la empresa del archivo JSON
+                # Eliminar la empresa y sus clientes del archivo JSON
                 try:
-                    with open("contribuyentes.json", "r", encoding="utf-8") as file:
+                    contribuyentes_path = os.path.join(script_dir, "contribuyentes.json")
+                    with open(contribuyentes_path, "r", encoding="utf-8") as file:
                         data = json.load(file)
-                    data = [empresa for empresa in data if empresa.get("Nombre:", "").upper() != nombre_empresa.upper()]
-                    with open("contribuyentes.json", "w", encoding="utf-8") as file:
+                    data = [empresa for empresa in data if empresa.get("Nombre:", "").upper() != nombre_empresa.upper() and empresa.get("Empresa Asociada:", "").upper() != nombre_empresa.upper()]
+                    with open(contribuyentes_path, "w", encoding="utf-8") as file:
                         json.dump(data, file, ensure_ascii=False, indent=4)
                 except (FileNotFoundError, json.JSONDecodeError) as e:
                     print(f"Error al eliminar la empresa: {e}")
+
+                # Eliminar las facturas de la empresa del archivo JSON
+                try:
+                    datos_guardados_path = os.path.join(script_dir, "datos_guardados.json")
+                    with open(datos_guardados_path, "r", encoding="utf-8") as file:
+                        facturas = json.load(file)
+                    facturas = [factura for factura in facturas if factura.get("Empresa", "").upper() != nombre_empresa.upper()]
+                    with open(datos_guardados_path, "w", encoding="utf-8") as file:
+                        json.dump(facturas, file, ensure_ascii=False, indent=4)
+                except (FileNotFoundError, json.JSONDecodeError) as e:
+                    print(f"Error al eliminar las facturas: {e}")
 
                 self.load_empresas()  # Recargar la lista de empresas
 
@@ -214,7 +231,8 @@ class ViewBooksDialog(QDialog):
         year = int(self.year_edit.currentText())
         tipo_libro = self.tipo_libro_edit.currentText()
 
-        base_path = f'INFORMES CONTADORES/EMPRESAS/{self.nombre_empresa.upper()}/LIBROS DE COMPRAS Y VENTAS/{year}/{month:02d}'
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        base_path = os.path.join(script_dir, 'INFORMES CONTADORES/EMPRESAS', self.nombre_empresa.upper(), 'LIBROS DE COMPRAS Y VENTAS', str(year), f"{month:02d}")
         month_name = datetime(year, month, 1).strftime('%B').upper()
 
         if tipo_libro in ["LIBRO DE COMPRAS", "AMBOS"]:
@@ -239,9 +257,12 @@ class ViewFacturaWindow(QWidget):
         self.nombre_empresa = nombre_empresa
         self.transaction_type = "Compras"  # Default transaction type to Compras
         
+        # Obtener la ruta del directorio donde se encuentra el script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        
         # Definir las rutas de las plantillas como atributos de la clase
-        self.template_path_compras = 'C:/Users/Dell/Desktop/SC/LIBRO DE COMPRAS ENERO 2025 - INVERSIONES JEPA ELECTRIC, C.A.xlsx'
-        self.template_path_ventas = 'C:/Users/Dell/Desktop/SC/LIBRO DE VENTAS FEBRERO 2025 - INVERSIONES JEPA ELECTRIC, C.A.xlsx'
+        self.template_path_compras = os.path.join(script_dir, 'LIBRO DE COMPRAS.xlsx')
+        self.template_path_ventas = os.path.join(script_dir, 'LIBRO DE VENTAS.xlsx')
         
         self.init_ui()
         self.load_facturas()
@@ -340,7 +361,9 @@ class ViewFacturaWindow(QWidget):
 
     def load_facturas(self):
         try:
-            with open("datos_guardados.json", "r", encoding="utf-8") as file:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            datos_guardados_path = os.path.join(script_dir, "datos_guardados.json")
+            with open(datos_guardados_path, "r", encoding="utf-8") as file:
                 data = json.load(file)
                 if not isinstance(data, list):
                     data = [data]
@@ -414,14 +437,33 @@ class ViewFacturaWindow(QWidget):
             fecha = datetime.strptime(factura["Fecha"], '%Y-%m-%d')
             year = fecha.year
             month = f"{fecha.month:02d}"
-            empresa_dir = f'C:/Users/Dell/Desktop/System Contable/INFORMES CONTADORES/EMPRESAS/{self.nombre_empresa}/FACTURAS/{tipo_transaccion}/{year}/{month}'
+            empresa_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), f'INFORMES CONTADORES/EMPRESAS/{self.nombre_empresa}/FACTURAS/{tipo_transaccion}/{year}/{month}')
             if not os.path.exists(empresa_dir):
                 os.makedirs(empresa_dir)
+            
+            # Crear el nuevo nombre del archivo
+            base_name = f"{self.nombre_empresa}-{tipo_transaccion}-{factura['Número de Documento']}"
             new_file_path = os.path.join(empresa_dir, os.path.basename(file_path))
+            new_file_path = self.get_unique_file_path(new_file_path, base_name, empresa_dir)
+            
+            # Eliminar el archivo anterior si existe
+            old_file_path = factura.get("Archivo", "")
+            if old_file_path and os.path.exists(old_file_path):
+                os.remove(old_file_path)
+            
             shutil.copy(file_path, new_file_path)
             self.empresa_facturas[row]["Archivo"] = new_file_path
             self.update_factura_table(self.empresa_facturas)
             self.save_facturas()
+
+    def get_unique_file_path(self, file_path, base_name, directory):
+        extension = os.path.splitext(file_path)[1]
+        new_file_path = os.path.join(directory, f"{base_name}{extension}")
+        counter = 1
+        while os.path.exists(new_file_path):
+            new_file_path = os.path.join(directory, f"{base_name}_{counter}{extension}")
+            counter += 1
+        return new_file_path
 
     def search_facturas(self):
         search_text = self.search_input.text().strip().lower()
@@ -482,7 +524,9 @@ class ViewFacturaWindow(QWidget):
 
     def save_facturas(self):
         try:
-            with open("datos_guardados.json", "r", encoding="utf-8") as file:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            datos_guardados_path = os.path.join(script_dir, "datos_guardados.json")
+            with open(datos_guardados_path, "r", encoding="utf-8") as file:
                 data = json.load(file)
                 if not isinstance(data, list):
                     data = [data]
@@ -491,7 +535,7 @@ class ViewFacturaWindow(QWidget):
                 all_facturas = [factura for factura in data if factura.get("Empresa", "").upper() != self.nombre_empresa.upper()]
                 all_facturas.extend(self.all_facturas)  # Guardar todas las facturas, no solo las del tipo actual
 
-                with open("datos_guardados.json", "w", encoding="utf-8") as file:
+                with open(datos_guardados_path, "w", encoding="utf-8") as file:
                     json.dump(all_facturas, file, indent=4, ensure_ascii=False)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron guardar las facturas: {e}")
@@ -629,17 +673,32 @@ class EditFacturaWindow(QWidget):
             old_file_path = self.factura.get("Archivo", "")
             if old_file_path and os.path.exists(old_file_path):
                 os.remove(old_file_path)
+            
             # Copiar el nuevo archivo a la ubicación deseada
             tipo_transaccion = self.factura.get("Tipo de Transacción", "Compras")
             fecha = datetime.strptime(self.factura["Fecha"], '%Y-%m-%d')
             year = fecha.year
             month = f"{fecha.month:02d}"
-            empresa_dir = f'C:/Users/Dell/Desktop/System Contable/INFORMES CONTADORES/EMPRESAS/{self.factura["Empresa"]}/FACTURAS/{tipo_transaccion}/{year}/{month}'
+            empresa_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), f'INFORMES CONTADORES/EMPRESAS/{self.factura["Empresa"]}/FACTURAS/{tipo_transaccion}/{year}/{month}')
             if not os.path.exists(empresa_dir):
                 os.makedirs(empresa_dir)
+            
+            # Crear el nuevo nombre del archivo
+            base_name = f"{self.factura['Empresa']}-{tipo_transaccion}-{self.factura['Número de Documento']}"
             new_file_path = os.path.join(empresa_dir, os.path.basename(file_path))
+            new_file_path = self.get_unique_file_path(new_file_path, base_name, empresa_dir)
+            
             shutil.copy(file_path, new_file_path)
             self.factura["Archivo"] = new_file_path
+
+    def get_unique_file_path(self, file_path, base_name, directory):
+        extension = os.path.splitext(file_path)[1]
+        new_file_path = os.path.join(directory, f"{base_name}{extension}")
+        counter = 1
+        while os.path.exists(new_file_path):
+            new_file_path = os.path.join(directory, f"{base_name}_{counter}{extension}")
+            counter += 1
+        return new_file_path
 
     def save_changes(self):
         self.factura["Nombre del Cliente"] = self.entry_nombre_cliente.text()
@@ -694,8 +753,9 @@ class ExportDialog(QDialog):
 
         self.setLayout(layout)
 
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = FacturaWindow()
-    window.show()
-    sys.exit(app.exec())
+        if __name__ == "__main__":
+            app = QApplication(sys.argv)
+            window = FacturaWindow()
+            window.show()
+            sys.exit(app.exec())
+
