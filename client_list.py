@@ -154,6 +154,17 @@ class ClientListWindow(QWidget):
                                 if os.path.exists(empresa_folder):
                                     shutil.rmtree(empresa_folder)
                                     print(f"Carpeta de la empresa {selected_entity_name} eliminada.")
+                                # Eliminar los datos asociados a la empresa en datos_guardados.json
+                                datos_guardados_path = os.path.join(script_dir, "datos_guardados.json")
+                                try:
+                                    with open(datos_guardados_path, "r", encoding="utf-8") as file:
+                                        datos_guardados = json.load(file)
+                                    datos_guardados = [dato for dato in datos_guardados if dato.get("Empresa", "").upper() != selected_entity_name.upper()]
+                                    with open(datos_guardados_path, "w", encoding="utf-8") as file:
+                                        json.dump(datos_guardados, file, ensure_ascii=False, indent=4)
+                                    print(f"Datos asociados a la empresa {selected_entity_name} eliminados de datos_guardados.json.")
+                                except (FileNotFoundError, json.JSONDecodeError) as e:
+                                    print(f"Error al eliminar los datos asociados a la empresa: {e}")
                                 # Guardar los cambios en el archivo JSON
                                 self.save_clients()
                                 # Actualizar la tabla
@@ -192,6 +203,7 @@ class ClientListWindow(QWidget):
                             QMessageBox.warning(self, "Eliminar", "Solo se pueden eliminar clientes desde la vista de clientes asociados a una empresa.")
         else:
             QMessageBox.warning(self, "Eliminar", "No se seleccionaron filas para eliminar.")
+
 
     def edit_entity(self):
         selected_rows = self.table_widget.selectionModel().selectedRows()
