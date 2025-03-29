@@ -309,8 +309,8 @@ def some_other_function():
     year = 2025
     month = 1
     tipo_libro = "AMBOS"
-    template_path_compras = os.path.join(os.path.dirname(__file__), "LIBRO DE COMPRAS.xlsx")
-    template_path_ventas = os.path.join(os.path.dirname(__file__), "LIBRO DE VENTAS.xlsx")
+    template_path_compras = os.path.join(os.path.dirname(__file__), "Template/LIBRO DE COMPRAS.xlsx")
+    template_path_ventas = os.path.join(os.path.dirname(__file__), "Template/LIBRO DE VENTAS.xlsx")
     export_to_excel(template_path_compras, template_path_ventas, usuario=usuario, year=year, month=month, tipo_libro=tipo_libro)
 
 if __name__ == "__main__":

@@ -261,8 +261,8 @@ class ViewFacturaWindow(QWidget):
         script_dir = os.path.dirname(os.path.abspath(__file__))
         
         # Definir las rutas de las plantillas como atributos de la clase
-        self.template_path_compras = os.path.join(script_dir, 'LIBRO DE COMPRAS.xlsx')
-        self.template_path_ventas = os.path.join(script_dir, 'LIBRO DE VENTAS.xlsx')
+        self.template_path_compras = os.path.join(script_dir, 'Templates/LIBRO DE COMPRAS.xlsx')
+        self.template_path_ventas = os.path.join(script_dir, 'Templates/LIBRO DE VENTAS.xlsx')
         
         self.init_ui()
         self.load_facturas()

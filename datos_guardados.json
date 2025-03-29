@@ -1,1 +1,19 @@
-[]
+[
+    {
+        "Fecha": "2025-03-28",
+        "Empresa": "E",
+        "Tipo de Transacción": "Compras",
+        "Cliente": "",
+        "Nombre del Cliente": "aa",
+        "RIF": "1",
+        "Número de Documento": "1",
+        "Número de Control": "1",
+        "Base imponible 16%": "100",
+        "IVA 16%": "16.00",
+        "Base imponible 8%": "",
+        "IVA 8%": "0.00",
+        "Compras Exentas": "",
+        "Total": "116.00",
+        "Archivo": ""
+    }
+]
